@@ -8,6 +8,7 @@ import cn.com.heaton.blelibrary.ble.BleDevice;
 import cn.com.heaton.blelibrary.ble.Ble;
 import cn.com.heaton.blelibrary.ble.BleStates;
 import cn.com.heaton.blelibrary.ble.BluetoothLeService;
+import cn.com.heaton.blelibrary.ble.annotation.Implement;
 import cn.com.heaton.blelibrary.ble.callback.BleReadCallback;
 
 /**
@@ -40,7 +41,9 @@ public class ReadRequest<T extends BleDevice> implements IMessage {
             case BleStates.BleStatus.Read:
                 if(msg.obj instanceof BluetoothGattCharacteristic){
                     BluetoothGattCharacteristic characteristic = (BluetoothGattCharacteristic) msg.obj;
-                    mBleLisenter.onReadSuccess(characteristic);
+                    if(mBleLisenter != null){
+                        mBleLisenter.onReadSuccess(characteristic);
+                    }
                 }
                 break;
             default:

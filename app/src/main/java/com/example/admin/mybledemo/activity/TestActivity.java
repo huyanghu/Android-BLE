@@ -1,198 +1,179 @@
-//package com.example.admin.mybledemo.activity;
-//
-//import android.bluetooth.BluetoothGatt;
-//import android.bluetooth.BluetoothGattCharacteristic;
-//import android.support.v7.app.AppCompatActivity;
-//import android.os.Bundle;
-//import android.util.Log;
-//import android.view.View;
-//import android.widget.AdapterView;
-//import android.widget.ListView;
-//import android.widget.Toast;
-//
-//import com.example.admin.mybledemo.LeDeviceListAdapter;
-//import com.example.admin.mybledemo.R;
-//import com.example.admin.mybledemo.annotation.LLAnnotation;
-//import com.example.admin.mybledemo.annotation.ViewInit;
-//import com.orhanobut.logger.Logger;
-//
-//import java.util.Arrays;
-//
-//import cn.com.heaton.blelibrary.ble.BleLisenter;
-//import cn.com.heaton.blelibrary.ble.BleManager;
-//import cn.com.heaton.blelibrary.ble.BleDevice;
-//import cn.com.heaton.blelibrary.ble.BleStates;
-//
-//public class TestActivity extends AppCompatActivity {
-//
-//    private static final String TAG = "TestActivity";
-//    @ViewInit(R.id.lv_scan)
-//    private ListView mListView;
-//    private LeDeviceListAdapter mLeDeviceListAdapter;
-//
-//    private BleManager<BleDevice> mManager;
-//
-//    @Override
-//    protected void onCreate(Bundle savedInstanceState) {
-//        super.onCreate(savedInstanceState);
-//        setContentView(R.layout.activity_test);
-//        //初始化注解  替代findViewById
-//        LLAnnotation.viewInit(this);
-//
-//        try {
-//            mManager = BleManager.getInstance(this);
-//            mManager.registerBleListener(mLisenter);
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//
-//        initView();
-//    }
-//
-//    public void scan(View view){
-////        mManager.startScan(new BleScanLisenter<BleDevice>() {
-////            @Override
-////            public void onLeScan(BleDevice device, int rssi, byte[] scanRecord) {
-////
-////            }
-////        });
-//    }
-//
-//    private <T> T getDevice(T device){
-//        return device;
-//    }
-//
-//    private void initView() {
-//        mLeDeviceListAdapter = new LeDeviceListAdapter(this);
-//        mListView.setAdapter(mLeDeviceListAdapter);
-//        mListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-//            @Override
-//            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-//                final BleDevice device = mLeDeviceListAdapter.getDevice(position);
-//                if (device == null) return;
-//                if (mManager.isScanning()) {
-//                    mManager.scanLeDevice(false);
-//                }
-//                if (device.isConnected()) {
-//                    mManager.disconnect(device);
-//                } else {
-//                    mManager.connect(device);
-//                }
-//            }
-//        });
-//
-//    }
-//
-//
-//    private BleLisenter mLisenter = new BleLisenter() {
-//        @Override
-//        public void onStart() {
-//            super.onStart();
-//            //可以选择性实现该方法   不需要则不用实现
-//        }
-//
-//        @Override
-//        public void onStop() {
-//            super.onStop();
-//            //可以选择性实现该方法   不需要则不用实现
-//            invalidateOptionsMenu();
-//        }
-//
-//        @Override
-//        public void onConnectException(final BleDevice device, final int errorCode) {
-//            super.onConnectException(device,errorCode);
-//            runOnUiThread(new Runnable() {
-//                @Override
-//                public void run() {
-//                    Log.i(TAG, "errorCode: "+errorCode+"--------蓝牙名称："+device.getmBleName());
-//                    Toast.makeText(getApplication(), errorCode+"", Toast.LENGTH_SHORT).show();
-//                    synchronized (mManager.getLocker()) {
-//                        mLeDeviceListAdapter.notifyDataSetChanged();
-//                    }
-//                }
-//            });
-//        }
-//
-//        @Override
-//        public void onLeScan(final BleDevice device, int rssi, byte[] scanRecord) {
-//            Logger.e("onLeScan");
-////                            //可以选择性的根据scanRecord蓝牙广播包进行过滤
-////                            如下  此处注释（根据你们产品的广播进行过滤或者根据产品的特定name或者address进行过滤也可以）
-////                            if(!BleConfig.matchProduct(scanRecord)){
-////                                return;
-////                            }
-//            synchronized (mManager.getLocker()) {
-//                runOnUiThread(new Runnable() {
-//                    @Override
-//                    public void run() {
-//                        mLeDeviceListAdapter.addDevice(device);
-//                        mLeDeviceListAdapter.notifyDataSetChanged();
-//                    }
-//                });
-//            }
-//        }
-//
-//        @Override
-//        public void onConnectionChanged(final BleDevice device) {
-//            Logger.e("onConnectionChanged" + device.getConnectionState() + device.isConnected());
-//            runOnUiThread(new Runnable() {
-//                @Override
-//                public void run() {
-//                    for (int i = 0; i < mLeDeviceListAdapter.getCount(); i++) {
-//                        if (device.getBleAddress().equals(mLeDeviceListAdapter.getDevice(i).getBleAddress())) {
-//                            if (device.isConnected()) {
-//                                mLeDeviceListAdapter.getDevice(i).setConnectionState(BleStates.BleStatus.CONNECTED);
-//                            } else if (device.isConnectting()) {
-//                            } else {
-//                                Toast.makeText(TestActivity.this, R.string.line_disconnect, Toast.LENGTH_SHORT).show();
-//                            }
-//                        }
-//                    }
-//                    synchronized (mManager.getLocker()) {
-//                        mLeDeviceListAdapter.notifyDataSetChanged();
-//                    }
-//                }
-//            });
-//        }
-//
-//        @Override
-//        public void onServicesDiscovered(BluetoothGatt gatt) {
-//            super.onServicesDiscovered(gatt);
-//            //可以选择性实现该方法   不需要则不用实现  库中已设置Notify
-//        }
-//
-//        @Override
-//        public void onChanged(BluetoothGattCharacteristic characteristic) {
-//            Logger.e("data===" + Arrays.toString(characteristic.getValue()));
-//            //可以选择性实现该方法   不需要则不用实现
-//            //硬件mcu 返回数据
-//        }
-//
-//        @Override
-//        public void onWrite(BluetoothGatt gatt) {
-//            //可以选择性实现该方法   不需要则不用实现
-//        }
-//
-//        @Override
-//        public void onRead(BleDevice device) {
-//            super.onRead(device);
-//            //可以选择性实现该方法   不需要则不用实现
-//            Logger.e("onRead");
-//        }
-//
-//        @Override
-//        public void onDescriptorWriter(BluetoothGatt gatt) {
-//            super.onDescriptorWriter(gatt);
-//            //可以选择性实现该方法   不需要则不用实现
-//        }
-//    };
-//
-//    @Override
-//    protected void onDestroy() {
-//        super.onDestroy();
-//        if (mManager != null) {
-//            mManager.unService();
-//            mManager.unRegisterBleListener(mLisenter);
-//        }
-//    }
-//}
+package com.example.admin.mybledemo.activity;
+
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.util.Log;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ListView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.example.admin.mybledemo.adapter.LeDeviceListAdapter;
+import com.example.admin.mybledemo.R;
+import com.example.admin.mybledemo.annotation.ContentView;
+import com.example.admin.mybledemo.annotation.OnItemClick;
+import com.example.admin.mybledemo.annotation.ViewInit;
+import com.example.admin.mybledemo.command.AppProtocol;
+import com.example.admin.mybledemo.command.CommandBean;
+
+import java.util.Arrays;
+import java.util.UUID;
+
+import cn.com.heaton.blelibrary.ble.Ble;
+import cn.com.heaton.blelibrary.ble.BleDevice;
+import cn.com.heaton.blelibrary.ble.callback.BleConnectCallback;
+import cn.com.heaton.blelibrary.ble.callback.BleNotiftCallback;
+import cn.com.heaton.blelibrary.ble.callback.BleReadRssiCallback;
+import cn.com.heaton.blelibrary.ble.callback.BleScanCallback;
+
+@ContentView(R.layout.activity_test)
+public class TestActivity extends BaseActivity {
+
+    private static final String TAG = "TestActivity";
+    @ViewInit(R.id.lv_scan)
+    private ListView mListView;
+    @ViewInit(R.id.notify_statue)
+    private TextView mNotifyStatus;
+    @ViewInit(R.id.notify_value)
+    private TextView mNotifyValue;
+
+    private LeDeviceListAdapter mLeDeviceListAdapter;
+    private Ble<BleDevice> mBle;
+    private BleDevice mDevice;
+
+    @Override
+    protected void onInitView() {
+        //根据自身需求传入需要在其他界面操作的蓝牙对象  这里测试取第一个设备对象
+        mBle = Ble.getInstance();
+        mDevice = mBle.getConnetedDevices().get(0);
+        mLeDeviceListAdapter = new LeDeviceListAdapter(this);
+        mListView.setAdapter(mLeDeviceListAdapter);
+    }
+
+    @Override
+    protected void initLinsenter() {}
+
+    //测试通知
+    public void testNotify(View view) {
+        if(mDevice != null){
+            mNotifyStatus.setText("设置通知监听成功！！！");
+            mBle.startNotify(mDevice, mBleNotifyCallback);
+        }
+    }
+
+    //测试扫描
+    public void testScan(View view){
+        if (mBle != null && !mBle.isScanning()) {
+            mLeDeviceListAdapter.clear();
+            mLeDeviceListAdapter.addDevices(mBle.getConnetedDevices());
+            mBle.startScan(new BleScanCallback<BleDevice>() {
+                @Override
+                public void onLeScan(final BleDevice device, int rssi, byte[] scanRecord) {
+                    synchronized (mBle.getLocker()) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                mLeDeviceListAdapter.addDevice(device);
+                                mLeDeviceListAdapter.notifyDataSetChanged();
+                            }
+                        });
+                    }
+                }
+            });
+        }
+    }
+
+    //测试发送
+    public void testSend(View view){
+        if(mDevice != null){
+            //发送数据
+            CommandBean commandBean = new CommandBean();
+            AppProtocol.sendCarMoveCommand(mDevice, commandBean.setCarCommand(80, 1));
+        }
+    }
+
+    //测试读取rssi值
+    public void testRssi(View view){
+        if(mDevice != null) {
+            mBle.readRssi(mDevice, new BleReadRssiCallback<BleDevice>() {
+                @Override
+                public void onReadRssiSuccess(int rssi) {
+                    super.onReadRssiSuccess(rssi);
+                    Log.e(TAG, "onReadRssiSuccess: " + rssi);
+                    Toast.makeText(TestActivity.this, "onReadRssiSuccess:" + rssi, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+    }
+
+    @OnItemClick(R.id.lv_scan)
+    public void itemOnClick(AdapterView<?> parent, View view, int position, long id){
+        //测试连接或断开
+        final BleDevice device = mLeDeviceListAdapter.getDevice(position);
+        if (device == null) return;
+        if (mBle.isScanning()) {
+            mBle.stopScan();
+        }
+        if (device.isConnected()) {
+//          mBle.disconnect(device, connectCallback);
+            mBle.disconnect(device);
+        } else if (!device.isConnectting()) {
+            mBle.connect(device, connectCallback);
+        }
+    }
+
+    /*连接的回调*/
+    private BleConnectCallback<BleDevice> connectCallback = new BleConnectCallback<BleDevice>() {
+        @Override
+        public void onConnectionChanged(BleDevice device) {
+            if (device.isConnected()) {
+                setNotify(device);
+            }
+            Log.e(TAG, "onConnectionChanged: " + device.isConnected());
+            mLeDeviceListAdapter.notifyDataSetChanged();
+        }
+
+        @Override
+        public void onConnectException(BleDevice device, int errorCode) {
+            super.onConnectException(device, errorCode);
+            Toast.makeText(TestActivity.this, "连接异常，异常状态码:" + errorCode, Toast.LENGTH_SHORT).show();
+        }
+    };
+
+    /*设置通知的回调*/
+    private void setNotify(BleDevice device) {
+         /*连接成功后，设置通知*/
+//        mBle.startNotify(device, mBleNotifyCallback);
+        mBle.startNotify(device, new BleNotiftCallback<BleDevice>() {
+            @Override
+            public void onChanged(BleDevice device, BluetoothGattCharacteristic characteristic) {
+
+            }
+        });
+    }
+
+    private BleNotiftCallback<BleDevice> mBleNotifyCallback = new BleNotiftCallback<BleDevice>() {
+        @Override
+        public void onChanged(BleDevice device, BluetoothGattCharacteristic characteristic) {
+            UUID uuid = characteristic.getUuid();
+            Log.e(TAG, "onChanged: "+uuid.toString());
+            Log.e(TAG, "onChanged: " + Arrays.toString(characteristic.getValue()));
+        }
+
+        @Override
+        public void onReady(BleDevice device) {
+            Log.e(TAG, "onReady: ");
+        }
+
+        @Override
+        public void onServicesDiscovered(BluetoothGatt gatt) {
+            Log.e(TAG, "onServicesDiscovered is success ");
+        }
+
+        @Override
+        public void onNotifySuccess(BluetoothGatt gatt) {
+            Log.e(TAG, "onNotifySuccess is success ");
+        }
+    };
+}

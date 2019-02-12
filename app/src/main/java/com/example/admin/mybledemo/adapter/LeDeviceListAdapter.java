@@ -1,4 +1,4 @@
-package com.example.admin.mybledemo;
+package com.example.admin.mybledemo.adapter;
 
 import android.app.Activity;
 import android.bluetooth.BluetoothDevice;
@@ -8,6 +8,8 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.TextView;
 
+
+import com.example.admin.mybledemo.R;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,9 +33,15 @@ public class LeDeviceListAdapter extends BaseAdapter {
     }
 
     public void addDevice(BleDevice device) {
-        if (!mLeDevices.contains(device)) {
-            mLeDevices.add(device);
+        for (BleDevice d : mLeDevices){
+            if(d.getBleAddress().equals(device.getBleAddress())){
+                return;
+            }
         }
+        mLeDevices.add(device);
+//        if (!mLeDevices.contains(device)) {
+//            mLeDevices.add(device);
+//        }
     }
 
 
@@ -85,7 +93,7 @@ public class LeDeviceListAdapter extends BaseAdapter {
         }
 
         final BleDevice device = mLeDevices.get(i);
-        final String deviceName = device.getmBleName();
+        final String deviceName = device.getBleName();
         final String deviceRSSI = BluetoothDevice.EXTRA_RSSI;
         if(device.isConnectting()){
             viewHolder.deviceState.setText("正在连接中...");

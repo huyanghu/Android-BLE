@@ -9,6 +9,7 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 
+import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import cn.com.heaton.blelibrary.ota.OtaListener;
@@ -18,9 +19,10 @@ import cn.com.heaton.blelibrary.ota.OtaListener;
  * Created by LiuLei on 2016/11/26.
  */
 
-public class BleDevice {
+public class BleDevice implements Serializable{
 
     public final static String          TAG                      = BleDevice.class.getSimpleName();
+    private static final long serialVersionUID = -2576082824642358033L;
 
     /**
      *  连接状态
@@ -42,6 +44,8 @@ public class BleDevice {
     /*是否自动连接*/
     private boolean mAutoConnect = false;//The default is not automatic connection
 
+    /*通知的特征*/
+    private  BluetoothGattCharacteristic mNotifyCharacteristic;
     /**
      * Use the address and name of the BluetoothDevice object
      * to construct the address and name of the {@code BleDevice} object
@@ -86,7 +90,7 @@ public class BleDevice {
         this.mBleAddress = mBleAddress;
     }
 
-    public String getmBleName() {
+    public String getBleName() {
         return mBleName;
     }
 
@@ -102,6 +106,14 @@ public class BleDevice {
         this.mBleAlias = mBleAlias;
     }
 
+    public BluetoothGattCharacteristic getNotifyCharacteristic() {
+        return mNotifyCharacteristic;
+    }
+
+    public void setNotifyCharacteristic(BluetoothGattCharacteristic notifyCharacteristic) {
+        this.mNotifyCharacteristic = notifyCharacteristic;
+    }
+
     @Override
     public String toString() {
         return "BleDevice{" +
@@ -110,6 +122,7 @@ public class BleDevice {
                 ", mBleName='" + mBleName + '\'' +
                 ", mBleAlias='" + mBleAlias + '\'' +
                 ", mAutoConnect=" + mAutoConnect +
+                ", mNotifyCharacteristic=" + mNotifyCharacteristic +
                 '}';
     }
 }

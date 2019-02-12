@@ -1,6 +1,7 @@
 package cn.com.heaton.blelibrary.ble;
 
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -14,11 +15,13 @@ import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.util.Log;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -27,6 +30,13 @@ import java.util.Map;
 import java.util.UUID;
 
 import cn.com.heaton.blelibrary.BuildConfig;
+import cn.com.heaton.blelibrary.ble.callback.BleConnectCallback;
+import cn.com.heaton.blelibrary.ble.callback.BleNotiftCallback;
+import cn.com.heaton.blelibrary.ble.callback.wrapper.ConnectWrapperLisenter;
+import cn.com.heaton.blelibrary.ble.callback.wrapper.NotifyWrapperLisenter;
+import cn.com.heaton.blelibrary.ble.request.ConnectRequest;
+import cn.com.heaton.blelibrary.ble.request.NotifyRequest;
+import cn.com.heaton.blelibrary.ble.request.Rproxy;
 import cn.com.heaton.blelibrary.ota.OtaListener;
 
 
@@ -35,7 +45,7 @@ public class BluetoothLeService extends Service {
 
     private final static String TAG = BluetoothLeService.class.getSimpleName();
 
-    private Ble mBleManager;
+    private ConnectRequest mConnectRequest;
     private Handler mHandler;
     private Ble.Options mOptions;
     private BluetoothManager mBluetoothManager;
@@ -61,8 +71,14 @@ public class BluetoothLeService extends Service {
      */
     private List<String> mConnectedAddressList;
 
+    private ConnectWrapperLisenter mConnectWrapperLisenter;
+
+    private NotifyWrapperLisenter mNotifyWrapperLisenter;
 
     private OtaListener mOtaListener;//Ota update operation listener
+
+    //blutooth status observer
+    private       BluetoothChangedObserver mBleObserver;
 
     /**
      * 在各种状态回调中发现连接更改或服务
@@ -77,48 +93,53 @@ public class BluetoothLeService extends Service {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     mIndex++;
                     mConnectedAddressList.add(device.getAddress());
-///                    mHandler.removeCallbacks(mConnectTimeout);
-                    mHandler.removeMessages(BleStates.BleStatus.ConnectException);
-                    mHandler.obtainMessage(BleStates.BleStatus.ConnectionChanged, 1, 0, device).sendToTarget();
-                    L.i(TAG, "Connected to GATT server.");
+                    mHandler.removeMessages(BleStates.BleStatus.ConnectTimeOut);
+//                    mHandler.obtainMessage(BleStates.BleStatus.ConnectionChanged, 1, 0, device).sendToTarget();
+                    if (mConnectWrapperLisenter != null){
+                        mConnectWrapperLisenter.onConnectionChanged(device, BleStates.BleStatus.CONNECTED);
+                    }
+                    L.i(TAG, "handleMessage:++++CONNECTED.");
                     // Attempts to discover services after successful connection.
-                    Log.i(TAG, "Attempting to start service discovery:"
-                            + mBluetoothGattMap.get(device.getAddress()).discoverServices());
-
+                    Log.i(TAG, "Attempting to start service discovery");
+                    mBluetoothGattMap.get(device.getAddress()).discoverServices();
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-///                    mHandler.removeCallbacks(mConnectTimeout);
-                    mHandler.removeMessages(BleStates.BleStatus.ConnectException);
+                    mHandler.removeMessages(BleStates.BleStatus.ConnectTimeOut);
                     L.i(TAG, "Disconnected from GATT server.");
-                    mHandler.obtainMessage(BleStates.BleStatus.ConnectionChanged, 0, 0, device).sendToTarget();
+//                    mHandler.obtainMessage(BleStates.BleStatus.ConnectionChanged, 0, 0, device).sendToTarget();
+                    if (mConnectWrapperLisenter != null){
+                        mConnectWrapperLisenter.onConnectionChanged(device, BleStates.BleStatus.DISCONNECT);
+                    }
                     close(device.getAddress());
                 }
             } else {
                 //Occurrence 133 or 257 19 Equal value is not 0: Connection establishment failed due to protocol stack
-                mHandler.removeMessages(BleStates.BleStatus.ConnectException);
+                mHandler.removeMessages(BleStates.BleStatus.ConnectTimeOut);
                 L.e(TAG, "onConnectionStateChange+++: " + "Connection status is abnormal:" + status);
-                BleDevice d = mBleManager.getBleDevice(device);
-                int errorCode = BleStates.BleStatus.ConnectFailed;
-                if (d.isConnected()) {
-                    //Mcu connection is broken or the signal is weak and other reasons disconnect
-                    errorCode = BleStates.BleStatus.ConnectException;
-                } else if (d.isConnectting()) {
-                    //Connection failed
-                    errorCode = BleStates.BleStatus.ConnectFailed;
-                } else {
-                    //Abnormal state (in theory, there is no such situation)
-                    errorCode = BleStates.BleStatus.ConnectError;
+                close(device.getAddress());
+//                mHandler.obtainMessage(BleStates.BleStatus.ConnectException, errorCode, 0, device).sendToTarget();
+                if (mConnectWrapperLisenter != null){
+                    mConnectWrapperLisenter.onConnectException(device);
                 }
-//                disconnect(d.getBleAddress());
-                close(d.getBleAddress());
-                mHandler.obtainMessage(BleStates.BleStatus.ConnectException, errorCode, 0, device).sendToTarget();
             }
 
+        }
+
+        @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+        public void onMtuChanged(android.bluetooth.BluetoothGatt gatt, int mtu, int status){
+            if (gatt != null && gatt.getDevice() != null) {
+                BleDevice d = mConnectRequest.getBleDevice(gatt.getDevice());
+                L.e(TAG, "onMtuChanged mtu=" + mtu + ",status=" + status);
+                mHandler.obtainMessage(BleStates.BleStatus.MTUCHANGED, mtu, status, d).sendToTarget();
+            }
         }
 
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                mHandler.obtainMessage(BleStates.BleStatus.ServicesDiscovered, gatt).sendToTarget();
+//                mHandler.obtainMessage(BleStates.BleStatus.ServicesDiscovered, gatt).sendToTarget();
+                if (mNotifyWrapperLisenter != null) {
+                    mNotifyWrapperLisenter.onServicesDiscovered(gatt);
+                }
                 //Empty the notification attribute list
                 mNotifyCharacteristics.clear();
                 mNotifyIndex = 0;
@@ -168,6 +189,9 @@ public class BluetoothLeService extends Service {
         public void onCharacteristicChanged(BluetoothGatt gatt,
                                             BluetoothGattCharacteristic characteristic) {
             synchronized (mLocker) {
+                if (gatt.getDevice() == null)return;
+
+                BleDevice d = mConnectRequest.getBleDevice(gatt.getDevice());
                 L.i(TAG, gatt.getDevice().getAddress() + " -- onCharacteristicChanged: " + (characteristic.getValue() != null ? Arrays.toString(characteristic.getValue()) : ""));
                 if (mOptions.uuid_ota_write_cha.equals(characteristic.getUuid()) || mOptions.uuid_ota_notify_cha.equals(characteristic.getUuid())) {
                     if (mOtaListener != null) {
@@ -175,7 +199,13 @@ public class BluetoothLeService extends Service {
                     }
                     return;
                 }
-                mHandler.obtainMessage(BleStates.BleStatus.Changed, characteristic).sendToTarget();
+
+                if(d != null){
+                    d.setNotifyCharacteristic(characteristic);
+                    if (mNotifyWrapperLisenter != null) {
+                        mNotifyWrapperLisenter.onChanged(d, characteristic);
+                    }
+                }
             }
         }
 
@@ -192,7 +222,10 @@ public class BluetoothLeService extends Service {
                         setCharacteristicNotification(gatt.getDevice().getAddress(), mNotifyCharacteristics.get(mNotifyIndex++), true);
                     } else {
                         L.e(TAG, "====setCharacteristicNotification is true,ready to sendData===");
-                        mHandler.obtainMessage(BleStates.BleStatus.NotifySuccess, gatt).sendToTarget();
+//                        mHandler.obtainMessage(BleStates.BleStatus.NotifySuccess, gatt).sendToTarget();
+                        if (mNotifyWrapperLisenter != null) {
+                            mNotifyWrapperLisenter.onNotifySuccess(gatt);
+                        }
                     }
                 }
                 mHandler.obtainMessage(BleStates.BleStatus.DescriptorWriter, gatt).sendToTarget();
@@ -212,6 +245,17 @@ public class BluetoothLeService extends Service {
         public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
             System.out.println("rssi = " + rssi);
             mHandler.obtainMessage(BleStates.BleStatus.ReadRssi, rssi).sendToTarget();
+        }
+    };
+
+    /**
+     * 蓝牙状态变化时的回调  2018/08/29
+     */
+    private BluetoothChangedObserver.BluetoothStatusLisenter
+            mBluetoothStatusLisenter = new BluetoothChangedObserver.BluetoothStatusLisenter() {
+        @Override
+        public void onBluetoothStatusChanged(int status) {
+            mHandler.obtainMessage(status).sendToTarget();
         }
     };
 
@@ -238,19 +282,27 @@ public class BluetoothLeService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
+        this.mBleObserver = new BluetoothChangedObserver(getApplication());
+        this.mBleObserver.setBluetoothStatusLisenter(mBluetoothStatusLisenter);
+        //注册广播接收器
+        this.mBleObserver.registerReceiver();
         return mBinder;
     }
 
     @Override
     public boolean onUnbind(Intent intent) {
         close();
+        mBleObserver.unregisterReceiver();
         return super.onUnbind(intent);
     }
 
     private final IBinder mBinder = new LocalBinder();
 
-    public void setBleManager(Ble ble, Ble.Options options) {
-        this.mBleManager = ble;
+    public void initialize(Ble.Options options) {
+        mConnectRequest = Rproxy.getInstance().getRequest(ConnectRequest.class);
+        setConnectWrapperLisenter(mConnectRequest);
+        NotifyRequest request = Rproxy.getInstance().getRequest(NotifyRequest.class);
+        setNotifyWrapperLisenter(request);
         this.mHandler = BleHandler.getHandler();
         this.mOptions = options;
     }
@@ -260,13 +312,13 @@ public class BluetoothLeService extends Service {
      *
      * @return 是否初始化成功
      */
-    public boolean initialize() {
+    public boolean initBLE() {
         // For API level 18 and above, get a reference to BluetoothAdapter
         //Bluetooth 4.0, that API level> = 18, and supports Bluetooth 4.0 phone can use, if the mobile phone system version API level <18, is not used Bluetooth 4 android system 4.3 above, the phone supports Bluetooth 4.0
         if (mBluetoothManager == null) {
             mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
             if (mBluetoothManager == null) {
-                L.e(TAG, "Unable to initialize BluetoothManager.");
+                L.e(TAG, "Unable to initBLE BluetoothManager.");
                 return false;
             }
         }
@@ -296,11 +348,20 @@ public class BluetoothLeService extends Service {
             return true;
         }
 
-        if (mBluetoothAdapter == null || address == null) {
+        if (mBluetoothAdapter == null) {
             L.w(TAG,
-                    "BluetoothAdapter not initialized or unspecified address.");
+                    "BluetoothAdapter not initialized");
             return false;
         }
+
+        // getRemoteDevice(address) will throw an exception if the device address is invalid,
+        // so it's necessary to check the address
+        boolean isValidAddress = BluetoothAdapter.checkBluetoothAddress(address);
+        if (!isValidAddress) {
+            L.d(TAG, "the device address is invalid");
+            return false;
+        }
+
         // Previously connected device. Try to reconnect. ()
         if (mBluetoothGattMap == null) {
             mBluetoothGattMap = new HashMap<>();
@@ -314,14 +375,14 @@ public class BluetoothLeService extends Service {
         }
         //10s after the timeout prompt
         Message msg = Message.obtain();
-        msg.what = BleStates.BleStatus.ConnectException;
-        msg.arg1 = BleStates.BleStatus.ConnectTimeOut;
+        msg.what = BleStates.BleStatus.ConnectTimeOut;
         msg.obj = device;
         mHandler.sendMessageDelayed(msg, mOptions.connectTimeout);
-        // We want to directly connect to the device, so we are setting the
-        // autoConnect
-        // parameter to false
-        mHandler.obtainMessage(BleStates.BleStatus.ConnectionChanged, 2, 0, device).sendToTarget();
+//        mHandler.obtainMessage(BleStates.BleStatus.ConnectionChanged, 2, 0, device).sendToTarget();
+        if (mConnectWrapperLisenter != null){
+            mConnectWrapperLisenter.onConnectionChanged(device, BleStates.BleStatus.CONNECTING);
+        }
+        // We want to directly connect to the device, so we are setting the autoConnect parameter to false
         BluetoothGatt bluetoothGatt = device.connectGatt(this, false, mGattCallback);
         if (bluetoothGatt != null) {
             mBluetoothGattMap.put(address, bluetoothGatt);
@@ -362,6 +423,21 @@ public class BluetoothLeService extends Service {
         }
     }
 
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    public boolean setMTU(String address, int mtu){
+        L.d(TAG,"setMTU "+mtu);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+            if(mtu>20){
+                if (mBluetoothGattMap.get(address) != null) {
+                    boolean result =   mBluetoothGattMap.get(address).requestMtu(mtu);
+                    L.d(TAG,"requestMTU "+mtu+" result="+result);
+                    return result;
+                }
+            }
+        }
+        return false;
+    }
+
     /**
      * 清除所有可连接的设备
      */
@@ -375,6 +451,27 @@ public class BluetoothLeService extends Service {
         }
         mBluetoothGattMap.clear();
         mConnectedAddressList.clear();
+    }
+
+    /**
+     * 清理蓝牙缓存
+     */
+    public boolean refreshDeviceCache(String address) {
+        BluetoothGatt gatt = mBluetoothGattMap.get(address);
+        if (gatt != null) {
+            try {
+                Method localMethod = gatt.getClass().getMethod(
+                        "refresh", new Class[0]);
+                if (localMethod != null) {
+                    boolean bool = ((Boolean) localMethod.invoke(
+                            gatt, new Object[0])).booleanValue();
+                    return bool;
+                }
+            } catch (Exception localException) {
+                L.i(TAG, "An exception occured while refreshing device");
+            }
+        }
+        return false;
     }
 
 
@@ -448,11 +545,9 @@ public class BluetoothLeService extends Service {
         BluetoothGattCharacteristic gattCharacteristic = mReadCharacteristicMap.get(address);
         if (gattCharacteristic != null) {
             try {
-//                if (mOptions.uuid_read_cha.equals(gattCharacteristic.getUuid())) {
-                    boolean result = mBluetoothGattMap.get(address).readRemoteRssi();
-                    L.d(TAG, address + " -- read result:" + result);
-                    return result;
-//                }
+                boolean result = mBluetoothGattMap.get(address).readRemoteRssi();
+                L.d(TAG, address + " -- read result:" + result);
+                return result;
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -492,7 +587,6 @@ public class BluetoothLeService extends Service {
         //If the number of descriptors in the eigenvalue of the notification is greater than zero
         if (characteristic.getDescriptors().size() > 0) {
             //Filter descriptors based on the uuid of the descriptor
-//            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(mOptions.uuid_notify_desc);
             List<BluetoothGattDescriptor> descriptors = characteristic.getDescriptors();
             for(BluetoothGattDescriptor descriptor : descriptors){
                 if (descriptor != null) {
@@ -515,31 +609,34 @@ public class BluetoothLeService extends Service {
      * @param gattServices 蓝牙服务集合
      */
     private void displayGattServices(final String address, List<BluetoothGattService> gattServices) {
-        if (gattServices == null)
-            return;
-        String uuid = null;
+        if (gattServices == null) return;
         // Loops through available GATT Services.
         for (BluetoothGattService gattService : gattServices) {
-            uuid = gattService.getUuid().toString();
+            String uuid = gattService.getUuid().toString();
             L.d(TAG, "displayGattServices: " + uuid);
-            if (uuid.equals(mOptions.uuid_service.toString())) {
+            if (uuid.equals(mOptions.uuid_service.toString()) || isContainUUID(uuid)) {
                 L.d(TAG, "service_uuid: " + uuid);
                 List<BluetoothGattCharacteristic> gattCharacteristics = gattService.getCharacteristics();
                 for (BluetoothGattCharacteristic gattCharacteristic : gattCharacteristics) {
-//                    int charaProp = gattCharacteristic.getProperties();
-//                    if ((charaProp | BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
-//                        Log.e(TAG, "The readable UUID for gattCharacteristic is:" + gattCharacteristic.getUuid());
-//                        mReadCharacteristicMap.put(address, gattCharacteristic);
-//                    }
-//                    if ((charaProp | BluetoothGattCharacteristic.PROPERTY_WRITE) > 0) {
-//                        Log.e(TAG, "The writable UUID for gattCharacteristic is:" + gattCharacteristic.getUuid());
-//                        mWriteCharacteristicMap.put(address, gattCharacteristic);
-//                    }
-//                    if ((charaProp | BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0) {
-//                        Log.e(TAG, "The characteristics of gattCharacteristic are UUID:" + gattCharacteristic.getUuid());
-//                        mNotifyCharacteristics.add(gattCharacteristic);
-//                    }
+                    /*int charaProp = gattCharacteristic.getProperties();
+                    if ((charaProp & BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
+                        Log.e(TAG, "The readable UUID for gattCharacteristic is:" + gattCharacteristic.getUuid());
+                        mReadCharacteristicMap.put(address, gattCharacteristic);
+                    }
+                    if ((charaProp & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0) {
+                        Log.e(TAG, "The writable UUID for gattCharacteristic is:" + gattCharacteristic.getUuid());
+                        mWriteCharacteristicMap.put(address, gattCharacteristic);
+                    }
+                    if ((charaProp & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
+                        Log.e(TAG, "The PROPERTY_NOTIFY characteristic's UUID:" + gattCharacteristic.getUuid());
+                        mNotifyCharacteristics.add(gattCharacteristic);
+                    }
+                    if((charaProp & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0){
+                        Log.e(TAG, "The PROPERTY_INDICATE characteristic's UUID:" + gattCharacteristic.getUuid());
+                        mNotifyCharacteristics.add(gattCharacteristic);
+                    }*/
                     uuid = gattCharacteristic.getUuid().toString();
+                    L.d(TAG, "Characteristic_uuid: " + uuid);
                     if (uuid.equals(mOptions.uuid_write_cha.toString())) {
                         L.e("mWriteCharacteristic", uuid);
                         mWriteCharacteristicMap.put(address, gattCharacteristic);
@@ -551,6 +648,9 @@ public class BluetoothLeService extends Service {
                     } if ((gattCharacteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
                         mNotifyCharacteristics.add(gattCharacteristic);
                         L.e("mNotifyCharacteristics", "PROPERTY_NOTIFY");
+                    } if((gattCharacteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0){
+                        mNotifyCharacteristics.add(gattCharacteristic);
+                        L.e("mNotifyCharacteristics", "PROPERTY_INDICATE");
                     }
                 }
                 //Really set up notifications
@@ -560,6 +660,16 @@ public class BluetoothLeService extends Service {
                 }
             }
         }
+    }
+
+    //是否包含该uuid
+    private boolean isContainUUID(String uuid) {
+        for (UUID u : mOptions.uuid_services_extra){
+            if(u != null && uuid.equals(u.toString())){
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -682,7 +792,7 @@ public class BluetoothLeService extends Service {
      * @param updating 升级状态
      */
     public void setOtaUpdating(boolean updating) {
-        mOtaUpdating = updating;
+        this.mOtaUpdating = updating;
     }
 
     /**
@@ -691,23 +801,32 @@ public class BluetoothLeService extends Service {
      * @param otaListener 监听对象
      */
     public void setOtaListener(OtaListener otaListener) {
-        mOtaListener = otaListener;
+        this.mOtaListener = otaListener;
     }
 
 
-    /**
-     * 蓝牙相关参数配置基类
-     */
-    public static class Options {
-
-        public UUID uuid_service = UUID.fromString("0000fee9-0000-1000-8000-00805f9b34fb");
-        public UUID uuid_write_cha = UUID.fromString("d44bc439-abfd-45a2-b575-925416129600");
-        public UUID uuid_read_cha = UUID.fromString("d44bc439-abfd-45a2-b575-925416129600");
-        public UUID uuid_notify = UUID.fromString("d44bc439-abfd-45a2-b575-925416129601");
-        public UUID uuid_notify_desc = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
-
-        public UUID uuid_ota_service = UUID.fromString("0000fee8-0000-1000-8000-00805f9b34fb");
-        public UUID uuid_ota_notify_cha = UUID.fromString("003784cf-f7e3-55b4-6c4c-9fd140100a16");
-        public UUID uuid_ota_write_cha = UUID.fromString("013784cf-f7e3-55b4-6c4c-9fd140100a16");
+    public void setConnectWrapperLisenter(ConnectWrapperLisenter lisenter) {
+        this.mConnectWrapperLisenter = lisenter;
     }
+
+    public void setNotifyWrapperLisenter(NotifyWrapperLisenter lisenter) {
+        this.mNotifyWrapperLisenter = lisenter;
+    }
+
+//    /**
+//     * 蓝牙相关参数配置基类
+//     */
+//    public static class Options {
+//
+//        public UUID[] uuid_services_extra = new UUID[]{};
+//        public UUID uuid_service = UUID.fromString("0000fee9-0000-1000-8000-00805f9b34fb");
+//        public UUID uuid_write_cha = UUID.fromString("d44bc439-abfd-45a2-b575-925416129600");
+//        public UUID uuid_read_cha = UUID.fromString("d44bc439-abfd-45a2-b575-925416129600");
+//        public UUID uuid_notify = UUID.fromString("d44bc439-abfd-45a2-b575-925416129601");
+//        public UUID uuid_notify_desc = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+//
+//        public UUID uuid_ota_service = UUID.fromString("0000fee8-0000-1000-8000-00805f9b34fb");
+//        public UUID uuid_ota_notify_cha = UUID.fromString("003784cf-f7e3-55b4-6c4c-9fd140100a16");
+//        public UUID uuid_ota_write_cha = UUID.fromString("013784cf-f7e3-55b4-6c4c-9fd140100a16");
+//    }
 }

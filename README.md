@@ -1,4 +1,9 @@
-# 对蓝牙感兴趣可以加群讨论学习(QQ：494309361)
+#### 对蓝牙感兴趣可以加群讨论学习(QQ：494309361)
+### 有个人项目或者定制化需求的可加QQ:823581722 进行联系
+### Email：jerryee0911@qq.com
+
+### 扫描下载APK:
+![二维码.png](https://www.pgyer.com/app/qrcode/Dr8d)
 
 #### 一、先来看张BleLib库的api之间的关系图：
 ![BleLib库结构图.png](http://upload-images.jianshu.io/upload_images/3884117-2c5a0b95cda75158.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/840)
@@ -23,6 +28,165 @@
 ```
 
 ### 二、历史版本介绍：
+[![Version](https://img.shields.io/badge/BleLib-v2.5.3-blue.svg)](https://bintray.com/superliu/maven/BleLib/2.5.3)
+```
+1、添加发送大数据量的进度回调
+    private void sendEntityData() throws IOException {
+            byte[] data = ByteUtils.toByteArray(getAssets().open("WhiteChristmas.bin"));
+            Log.e(TAG, "sendEntityData: "+data.length);
+            mBle.writeEntity(mBle.getConnetedDevices().get(0), data, 20, 50, new BleWriteEntityCallback<BleDevice>() {
+                @Override
+                public void onWriteSuccess() {
+                    L.e("writeEntity", "onWriteSuccess");
+                }
+
+                @Override
+                public void onWriteFailed() {
+                    L.e("writeEntity", "onWriteFailed");
+                }
+
+                @Override
+                public void onWriteProgress(double progress) {
+                    Log.e("writeEntity", "当前发送进度: "+progress);
+                }
+
+                @Override
+                public void onWriteCancel() {
+                    Log.e(TAG, "onWriteCancel: ");
+                }
+            });
+        }
+2、修复持续接收通知回调过快导致数据重复的问题
+3、修复多设备连接，同时断开所有设备，回调次数不完整的问题
+```
+[![Version](https://img.shields.io/badge/BleLib-v2.5.2%20beta-blue.svg)](https://bintray.com/superliu/maven/BleLib/2.5.2-beta)
+```
+1、添加自动连接的接口(使用新的初始化写法)
+    mBle = Ble.options()
+                 .setLogBleExceptions(true)
+                 .setThrowBleException(true)
+                 .setAutoConnect(true)//自动重连
+                 .setConnectFailedRetryCount(3)
+                 .setConnectTimeout(10 * 1000)
+                 .setScanPeriod(12 * 1000)
+                 .setUuid_service(UUID.fromString("0000fee9-0000-1000-8000-00805f9b34fb"))
+                 .setUuid_write_cha(UUID.fromString("d44bc439-abfd-45a2-b575-925416129600"))
+                 .create(getApplicationContext());
+2、优化断开连接后，自动移除通知监听的问题
+```
+[![Version](https://img.shields.io/badge/BleLib-v2.5.0-blue.svg)](https://bintray.com/superliu/maven/BleLib/2.5.0)
+```
+1、添加了发送大数据包（如：文件等）的接口
+    try {
+        //获取整个文件的总字节
+        byte[]data = toByteArray(getAssets().open("WhiteChristmas.bin"));
+        //发送大数据量的包
+        mBle.writeEntity(mBle.getConnetedDevices().get(0), data, 20, 50, new BleWriteEntityCallback<BleDevice>() {
+            @Override
+            public void onWriteSuccess() {
+                L.e("writeEntity", "onWriteSuccess");
+            }
+
+            @Override
+            public void onWriteFailed() {
+                L.e("writeEntity", "onWriteFailed");
+            }
+        });
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+2、修复了正在扫描时，关闭蓝牙导致停止扫描onStop()不回调的问题
+```
+[![Version](https://img.shields.io/badge/BleLib-v2.3.0-blue.svg)](https://bintray.com/superliu/maven/BleLib/2.3.0)
+```
+1、添加通过mac地址连接的接口:
+    String address = device.getBleAddress();//或者  String address = "3E:9A:4A:71:F6:4D";
+    mBle.connect(address, new BleConnCallback<BleDevice>() {
+         @Override
+         public void onConnectionChanged(BleDevice device) {
+
+         }
+       });
+2、添加BLE4.2的设置MTU的接口:
+    if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+        //此处第二个参数  不是特定的   比如你也可以设置500   但是如果设备不支持500个字节则会返回最大支持数
+        mBle.setMTU(mBle.getConnetedDevices().get(0).getBleAddress(), 250, new BleMtuCallback<BleDevice>() {
+            @Override
+            public void onMtuChanged(BleDevice device, int mtu, int status) {
+                super.onMtuChanged(device, mtu, status);
+                ToastUtil.showToast("最大支持MTU："+mtu);
+            }
+        });
+    }else {
+        ToastUtil.showToast("设备不支持MTU");
+    }
+
+```
+[![Version](https://img.shields.io/badge/BleLib-v2.2.0-blue.svg)](https://bintray.com/superliu/maven/BleLib/2.2.0)
+```
+修复连接多个设备在onChanged()回调中判断设备对象
+    /*设置通知的回调*/
+    private BleNotiftCallback<BleDevice> bleNotiftCallback =  new BleNotiftCallback<BleDevice>() {
+        @Override
+        public void onChanged(BleDevice device, BluetoothGattCharacteristic characteristic) {
+            UUID uuid = characteristic.getUuid();
+            Log.e(TAG, "onChanged==uuid:" + uuid.toString());
+            Log.e(TAG, "onChanged==address:"+ device.getBleAddress());
+            Log.e(TAG, "onChanged==data:" + Arrays.toString(characteristic.getValue()));
+        }
+    };
+
+```
+[![Version](https://img.shields.io/badge/BleLib-v2.1.5-blue.svg)](https://bintray.com/superliu/maven/BleLib/2.1.5)
+```
+更新低版本手机(初始化问题)报错问题
+```
+[![Version](https://img.shields.io/badge/BleLib-v2.1.2-blue.svg)](https://bintray.com/superliu/maven/BleLib/2.1.2)
+```
+1、修复上个版本依赖地址变化，导致依赖时出现问题。
+2、添加清理蓝牙缓存接口
+```
+[![Version](https://img.shields.io/badge/BleLib-v2.1.1-blue.svg)](https://bintray.com/superliu/maven/BleLib/2.1.1)
+```
+适配更新5.0以上版本手机扫描的API
+```
+[![Version](https://img.shields.io/badge/BleLib-v2.1.0-blue.svg)](https://bintray.com/superliu/maven/BleLib/2.1.0)
+```
+该版本添加跳转到测试界面（先连接设备），在测试界面操作该蓝牙对象的扫描、连接、断开、通知等回调的接口（任意界面都可以随心所欲的操作或者拿到mcu返回的数据）
+1、在其他界面你也想拿到蓝牙设备传过来的数据，你可以这样做：（重要）
+    //测试通知
+    public void testNotify(BleDevice device) {
+        if(device != null){
+            mNotifyStatus.setText("设置通知监听成功！！！");
+            mBle.startNotify(device, new BleNotiftCallback<BleDevice>() {
+                @Override
+                public void onChanged(BluetoothGattCharacteristic characteristic) {
+                    Log.e(TAG, "onChanged: " + Arrays.toString(characteristic.getValue()));
+                    mNotifyValue.setText("收到MCU通知值:\n"+Arrays.toString(characteristic.getValue()));
+                }
+            });
+        }
+    }
+2、在其他界面也想连接或者断开上个界面的设备对象，你可以这么做：
+    mListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                //测试连接或断开
+                final BleDevice device = mLeDeviceListAdapter.getDevice(position);
+                if (device == null) return;
+                if (mBle.isScanning()) {
+                    mBle.stopScan();
+                }
+                if (device.isConnected()) {
+                    //2.1.0版本新增接口（mBle.disconnect(device)接口仍可正常使用）
+                    mBle.disconnect(device, connectCallback);
+                } else if (!device.isConnectting()) {
+                    mBle.connect(device, connectCallback);
+                }
+            }
+        });
+3、扫描、发送数据、读取数据等接口都可如上正常使用（与之前版本一样）
+```
 [![Version](https://img.shields.io/badge/BleLib-v2.0.5-blue.svg)](https://bintray.com/superliu/maven/BleLib/2.0.5)
 ```
 该版本添加根据蓝牙地址获取蓝牙对象的接口
@@ -59,23 +223,23 @@
 [![License](https://img.shields.io/badge/license-Apache%202-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Download](https://api.bintray.com/packages/superliu/maven/BleLib/images/download.svg)](https://bintray.com/superliu/maven/BleLib/_latestVersion)
 ```groovy
-compile 'cn.com.superLei:blelibrary:2.0.4'
+compile 'cn.com.superLei:blelibrary:2.5.3'
 ```
 
 #### 1.初始化蓝牙(判断设备是否支持BLE，蓝牙是否打开以及6.0动态授权蓝牙权限等)<br>
 
 ```
-  private void initBle() {
-         mBle = Ble.getInstance();
-         Ble.Options options = new Ble.Options();
-         options.logBleExceptions = true;//设置是否输出打印蓝牙日志
-         options.throwBleException = true;//设置是否抛出蓝牙异常
-         options.autoConnect = false;//设置是否自动连接
-         options.scanPeriod = 12 * 1000;//设置扫描时长
-         options.connectTimeout = 10 * 1000;//设置连接超时时长
-         options.uuid_service = UUID.fromString("0000fee9-0000-1000-8000-00805f9b34fb");//设置主服务的uuid
-         options.uuid_write_cha = UUID.fromString("d44bc439-abfd-45a2-b575-925416129600");//设置可写特征的uuid
-         mBle.init(getApplicationContext(), options);
+    private void initBle() {
+        mBle = Ble.options()
+                .setLogBleExceptions(true)//设置是否输出打印蓝牙日志（非正式打包请设置为true，以便于调试）
+                .setThrowBleException(true)//设置是否抛出蓝牙异常
+                .setAutoConnect(true)//设置是否自动连接
+                .setConnectFailedRetryCount(3)
+                .setConnectTimeout(10 * 1000)//设置连接超时时长（默认10*1000 ms）
+                .setScanPeriod(12 * 1000)//设置扫描时长（默认10*1000 ms）
+                .setUuid_service(UUID.fromString("0000fee9-0000-1000-8000-00805f9b34fb"))//主服务的uuid
+                .setUuid_write_cha(UUID.fromString("d44bc439-abfd-45a2-b575-925416129600"))//可写特征的uuid
+                .create(getApplicationContext());
      } 
 ```
 
@@ -131,7 +295,7 @@ private void setNotify(BleDevice device) {
          /*连接成功后，设置通知*/
         mBle.startNotify(device, new BleNotiftCallback<BleDevice>() {
             @Override
-            public void onChanged(BluetoothGattCharacteristic characteristic) {
+            public void onChanged(BleDevice device, BluetoothGattCharacteristic characteristic) {
                 Log.e(TAG, "onChanged: " + Arrays.toString(characteristic.getValue()));
             }
 
@@ -175,9 +339,24 @@ boolean result = mBle.write(device, changeLevelInner(), new BleWriteCallback<Ble
             Log.e(TAG, "changeLevelInner: " + "发送数据失败!");
         }
 ```
+#### 6.OTA升级
+```
+//找到你需要升级文件的路径(一般情况都是保存再服务器上，一旦有更新会自动提示，然后APP下载并保存到本地，生成对应的file对象)
+File file = new File(...);
+//读写SD卡权限，此处略（6.0及以上需添加)
+OtaManager mOtaManager = new OtaManager(BleActivity.this);
+boolean result = mOtaManager.startOtaUpdate(file, (BleDevice) mBle.getConnetedDevices().get(0), mBle);
+Log.e("OTA升级结果:", result + "");
+```
 ### 四、Demo效果演示图：
 
 ![Demo预览图.gif](http://upload-images.jianshu.io/upload_images/3884117-49f080ad44b60946.gif?imageMogr2/auto-orient/strip)
+
+### 五、微信打赏：
+![](https://upload-images.jianshu.io/upload_images/3884117-5d22ae84180a93ed.jpg?imageMogr2/auto-orient/strip%7CimageView2/2/w/240)
+```
+注：打赏后可留言您的需求以及建议，本人会进行定期的更新优化库的体验，多谢支持!
+```
 
 
 

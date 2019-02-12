@@ -27,20 +27,21 @@ public abstract class BaseActivity extends AppCompatActivity {
         super.onCreate(bundle);
         initToolBar();
 
-        setContentView(getLayoutResource());
+//        setContentView(getLayoutResource());
 
         //初始化注解  替代findViewById
-        LLAnnotation.viewInit(this);
+//        LLAnnotation.viewInit(this);
+        LLAnnotation.bind(this);
 
         onInitView();
         initLinsenter();
     }
 
-    protected abstract int getLayoutResource();
+//    protected abstract int getLayoutResource();
 
     protected abstract void onInitView();
 
-    protected abstract void initLinsenter();
+    protected void initLinsenter(){};
 
     @Override
     protected void onTitleChanged(CharSequence title, int color) {

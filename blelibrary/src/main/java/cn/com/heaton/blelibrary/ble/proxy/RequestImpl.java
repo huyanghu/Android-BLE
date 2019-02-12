@@ -2,12 +2,14 @@ package cn.com.heaton.blelibrary.ble.proxy;
 
 import cn.com.heaton.blelibrary.ble.BleDevice;
 import cn.com.heaton.blelibrary.ble.Ble;
-import cn.com.heaton.blelibrary.ble.callback.BleConnCallback;
+import cn.com.heaton.blelibrary.ble.callback.BleConnectCallback;
+import cn.com.heaton.blelibrary.ble.callback.BleMtuCallback;
 import cn.com.heaton.blelibrary.ble.callback.BleNotiftCallback;
 import cn.com.heaton.blelibrary.ble.callback.BleReadCallback;
 import cn.com.heaton.blelibrary.ble.callback.BleReadRssiCallback;
 import cn.com.heaton.blelibrary.ble.callback.BleScanCallback;
 import cn.com.heaton.blelibrary.ble.callback.BleWriteCallback;
+import cn.com.heaton.blelibrary.ble.callback.BleWriteEntityCallback;
 import cn.com.heaton.blelibrary.ble.request.*;
 
 /**
@@ -25,16 +27,8 @@ public class RequestImpl<T extends BleDevice> implements RequestLisenter<T>{
         return instance;
     }
 
-
     @Override
     public void startScan(BleScanCallback<T> callback) {
-//        try {
-//            ScanRequest request = RequestFactory.newInstance().generateRequest(ScanRequest.class);
-//            request.startScan(callback, options.scanPeriod);
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//        ScanRequest<T> request = ScanRequest.getInstance();
         ScanRequest<T> request = Rproxy.getInstance().getRequest(ScanRequest.class);
         request.startScan(callback, options.scanPeriod);
     }
@@ -46,9 +40,15 @@ public class RequestImpl<T extends BleDevice> implements RequestLisenter<T>{
     }
 
     @Override
-    public boolean connect(T device, BleConnCallback<T> callback) {
+    public boolean connect(T device, BleConnectCallback<T> callback) {
         ConnectRequest<T> request = Rproxy.getInstance().getRequest(ConnectRequest.class);
         return request.connect(device, callback);
+    }
+
+    @Override
+    public boolean connect(String address, BleConnectCallback<T> callback) {
+        ConnectRequest<T> request = Rproxy.getInstance().getRequest(ConnectRequest.class);
+        return request.connect(address, callback);
     }
 
     @Override
@@ -57,11 +57,22 @@ public class RequestImpl<T extends BleDevice> implements RequestLisenter<T>{
         request.notify(device, callback);
     }
 
+    @Override
+    public void unNotify(T device) {
+        NotifyRequest<T> request = Rproxy.getInstance().getRequest(NotifyRequest.class);
+        request.unNotify(device);
+    }
 
     @Override
     public void disconnect(T device) {
         ConnectRequest request = Rproxy.getInstance().getRequest(ConnectRequest.class);
         request.disconnect(device);
+    }
+
+    @Override
+    public void disconnect(T device, BleConnectCallback<T> callback) {
+        ConnectRequest<T> request = Rproxy.getInstance().getRequest(ConnectRequest.class);
+        request.disconnect(device, callback);
     }
 
     @Override
@@ -80,5 +91,29 @@ public class RequestImpl<T extends BleDevice> implements RequestLisenter<T>{
     public boolean write(T device, byte[] data, BleWriteCallback<T> callback) {
         WriteRequest<T> request = Rproxy.getInstance().getRequest(WriteRequest.class);
         return request.write(device, data, callback);
+    }
+
+    @Override
+    public void writeEntity(T device, byte[] data, int packLength, int delay, BleWriteEntityCallback<T> callback) {
+        WriteRequest<T> request = Rproxy.getInstance().getRequest(WriteRequest.class);
+        request.writeEntity(device, data, packLength, delay, callback);
+    }
+
+    @Override
+    public void cancelWriteEntity() {
+        WriteRequest<T> request = Rproxy.getInstance().getRequest(WriteRequest.class);
+        request.cancelWriteEntity();
+    }
+
+//    @Override
+//    public boolean writeAutoEntity(T device, byte[] data, int packLength) {
+//        WriteRequest<T> request = Rproxy.getInstance().getRequest(WriteRequest.class);
+//        return request.writeAutoEntity(device, data, packLength);
+//    }
+
+    @Override
+    public boolean setMtu(String address, int mtu, BleMtuCallback<T> callback) {
+        MtuRequest<T> request = Rproxy.getInstance().getRequest(MtuRequest.class);
+        return request.setMtu(address, mtu, callback);
     }
 }
